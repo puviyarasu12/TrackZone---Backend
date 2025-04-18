@@ -17,7 +17,7 @@ const router = express.Router();
 // Constants
 const SALT_ROUNDS = 10;
 const generateEmployeeId = () => `EMP${Date.now()}`;
-const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
+const BASE_URL = process.env.BASE_URL || 'https://trackzone-backend.onrender.com';
 const OFFICE_LAT = 10.8261981;
 const OFFICE_LON = 77.0608064;
 const GEOFENCE_RADIUS = 500000;
