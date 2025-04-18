@@ -3,9 +3,9 @@ const Schema = mongoose.Schema;
 
 const leaveSchema = new Schema({
   employee: {
-    type: Schema.Types.ObjectId,
-    ref: 'Employee',
-    required: true
+    type: String, // Changed from ObjectId to String
+    required: true,
+    trim: true,
   },
   leaveType: {
     type: String,
