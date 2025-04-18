@@ -34,7 +34,7 @@ router.post('/register', upload.single('photo'), async (req, res) => {
       name,
       email,
       contactNumber,
-      photo: `/Uploads/${path.basename(photo.path)}`,
+      photo: photo.path || photo.filename || ``,
       password: hashedPassword,
       role: 'admin'
     });
