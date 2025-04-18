@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
+const Leave=require('../models/leave')
 
 const Employee = require('../models/employee');
 const CheckIn = require('../models/checkin');
