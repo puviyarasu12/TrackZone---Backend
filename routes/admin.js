@@ -232,7 +232,7 @@ router.delete('/tasks/:id', async (req, res) => {
 // ====================== 👥 EMPLOYEE MANAGEMENT ======================
 router.get('/employees', async (req, res) => {
   try {
-    const employees = await Employee.find().select('employeeId name email position department contactNumber photoPath');
+    const employees = await Employee.find().select('employeeId name email designation department contactNumber photoPath');
     const sanitizedEmployees = employees.map(emp => ({
       ...emp._doc,
       photoPath: emp.photoPath || 'https://via.placeholder.com/150', // Fallback URL
