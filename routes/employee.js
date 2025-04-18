@@ -381,7 +381,7 @@ router.post('/checkin', async (req, res) => {
 
     const now = new Date();
     const currentHour = now.getHours();
-    if (currentHour < 9 || currentHour >= 23) {
+    if (currentHour < 9 || currentHour >= 19) {
       return res.status(403).json({ message: '⛔ Check-in allowed only between 9:00 AM and 5:00 PM' });
     }
 
@@ -408,13 +408,12 @@ router.post('/checkin', async (req, res) => {
         $push: {
           'monthlyData': {
             month: now.getMonth() + 1,
-            days: [{ date: now, status: 'Present', checkInTime: now, checkOutTime: null }]
+            days: [{ date: now, status: 'present', checkInTime: now, checkOutTime: null }]
           }
         }
       },
       { upsert: true, new: true }
     );
-    await attendance.save();
 
     const io = req.app.get('io');
     io.emit('checkin_notification', {
@@ -485,132 +484,6 @@ router.post('/verify-fingerprint', async (req, res) => {
   } catch (err) {
     console.error('Fingerprint Verification Error:', err);
     res.status(500).json({ success: false, message: 'Error verifying fingerprint' });
-  }
-});
-
-// ✅ Checkout
-router.post('/checkout', async (req, res) => {
-  if (!req.body || Object.keys(req.body).length === 0) {
-    return res.status(400).json({
-      message: 'Request body is empty or invalid',
-      solution: 'Ensure Content-Type: application/json header is set and body contains valid JSON',
-    });
-  }
-
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({
-      message: 'Email is required.',
-    });
-  }
-
-  try {
-    const employee = await Employee.findOne({ email: email.toLowerCase() });
-    if (!employee) return res.status(401).json({ message: 'Employee not found' });
-
-    const now = new Date();
-    const today = now.toISOString().slice(0, 10);
-    const record = await CheckIn.findOne({ email, date: today });
-
-    if (!record || !record.checkInTime) {
-      console.log(`No checkin record found for ${email} today`);
-      return res.status(404).json({
-        message: 'No check-in record found for today',
-        suggestion: 'Please check in first before checking out',
-      });
-    }
-
-    if (record.checkOutTime) {
-      console.log(`Employee ${email} already checked out at ${record.checkOutTime}`);
-      return res.status(409).json({
-        message: 'Already checked out today',
-        checkOutTime: record.checkOutTime,
-      });
-    }
-
-    // Update CheckIn record
-    record.checkOutTime = now;
-    await record.save();
-
-    // Update or create Attendance record
-    let attendance = await Attendance.findOne({
-      employeeId: employee.employeeId,
-      year: now.getFullYear(),
-    });
-
-    if (attendance) {
-      let monthData = attendance.monthlyData.find((m) => m.month === now.getMonth() + 1);
-
-      if (monthData) {
-        const dayRecord = monthData.days.find(
-          (d) => new Date(d.date).toDateString() === now.toDateString()
-        );
-
-        if (dayRecord) {
-          // Update existing day record
-          dayRecord.checkOutTime = now;
-          dayRecord.status = 'Present'; // Use valid enum value
-          dayRecord.hoursWorked = (now - dayRecord.checkInTime) / (1000 * 60 * 60); // Calculate hours worked
-        } else {
-          // Add new day record
-          monthData.days.push({
-            date: now,
-            checkInTime: record.checkInTime,
-            checkOutTime: now,
-            status: 'Present',
-            hoursWorked: (now - record.checkInTime) / (1000 * 60 * 60),
-          });
-          monthData.presentDays += 1;
-          monthData.totalWorkingDays += 1;
-        }
-      } else {
-        // Add new month data
-        attendance.monthlyData.push({
-          month: now.getMonth() + 1,
-          days: [
-            {
-              date: now,
-              checkInTime: record.checkInTime,
-              checkOutTime: now,
-              status: 'Present',
-              hoursWorked: (now - record.checkInTime) / (1000 * 60 * 60),
-            },
-          ],
-          totalWorkingDays: 1,
-          presentDays: 1,
-        });
-      }
-    } else {
-      // Create new attendance record
-      attendance = await Attendance.create({
-        employeeId: employee.employeeId,
-        year: now.getFullYear(),
-        monthlyData: [
-          {
-            month: now.getMonth() + 1,
-            days: [
-              {
-                date: now,
-                checkInTime: record.checkInTime,
-                checkOutTime: now,
-                status: 'Present',
-                hoursWorked: (now - record.checkInTime) / (1000 * 60 * 60),
-              },
-            ],
-            totalWorkingDays: 1,
-            presentDays: 1,
-          },
-        ],
-      });
-    }
-
-    // Save attendance record
-    await attendance.save();
-
-    res.status(200).json({ message: 'Check-out successful ✅' });
-  } catch (err) {
-    console.error('Checkout Error:', err);
-    res.status(500).json({ message: 'Server error during checkout.' });
   }
 });
 
