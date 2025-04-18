@@ -17,7 +17,7 @@ const router = express.Router();
 // Constants
 const SALT_ROUNDS = 10;
 const generateEmployeeId = () => `EMP${Date.now()}`;
-const BASE_URL = process.env.BASE_URL || 'https://trackzone-backend.onrender.com';
+const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
 const OFFICE_LAT = 10.8261981;
 const OFFICE_LON = 77.0608064;
 const GEOFENCE_RADIUS = 500000;
@@ -37,7 +37,6 @@ const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
-// Middleware: Verify JWT
 const verifyToken = (req, res, next) => {
   const token = req.header('Authorization')?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ message: 'Access denied. No token provided.' });
@@ -50,6 +49,87 @@ const verifyToken = (req, res, next) => {
     return res.status(400).json({ message: 'Invalid or expired token.' });
   }
 };
+
+// ================= LEAVE ROUTES ================= //
+
+// Employee: Request a new leave
+router.post('/leave/request', verifyToken, async (req, res) => {
+  const { employeeId, leaveType, startDate, endDate, reason } = req.body;
+
+  if (!employeeId || !leaveType || !startDate || !endDate || !reason) {
+    return res.status(400).json({ message: 'All fields are required.' });
+  }
+
+  if (req.user.employeeId !== employeeId) {
+    return res.status(403).json({ message: 'Unauthorized to request leave for another employee.' });
+  }
+
+  try {
+    const employee = await Employee.findOne({ employeeId });
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found.' });
+    }
+
+    const leave = new Leave({
+      employee: employeeId, // Use employeeId string
+      leaveType,
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      reason,
+      status: 'pending',
+    });
+
+    await leave.save();
+
+    // Notify admins
+    const notification = new Notification({
+      title: 'New Leave Request',
+      message:` ${employee.name} has submitted a leave request for ${leaveType} from ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}.`,
+      recipients: { type: 'all', value: 'admin' },
+      priority: 'Medium', // Changed from 'Normal' to 'Medium'
+    });
+    await notification.save();
+
+    const io = req.app.get('io');
+    io.emit('leave_notification', {
+      employee: employee.name,
+      leaveType,
+      startDate: new Date(startDate).toLocaleDateString(),
+      endDate: new Date(endDate).toLocaleDateString(),
+      message: `${employee.name} has submitted a leave request.`,
+    });
+
+    res.status(201).json({ message: 'Leave request submitted successfully.', data: leave });
+  } catch (err) {
+    console.error('Leave Request Error:', err);
+    res.status(500).json({ message: 'Error submitting leave request.' });
+  }
+});
+
+// Employee: Get their leave requests
+router.get('/leave/my-requests/:employeeId', verifyToken, async (req, res) => {
+  const { employeeId } = req.params;
+
+  if (req.user.employeeId !== employeeId) {
+    return res.status(403).json({ message: 'Unauthorized to view leave requests for another employee.' });
+  }
+
+  try {
+    const employee = await Employee.findOne({ employeeId });
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found.' });
+    }
+
+    const leaves = await Leave.find({ employee: employeeId }) // Use employeeId string
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ message: 'Leave requests fetched successfully.', data: leaves });
+  } catch (err) {
+    console.error('Fetch Leave Requests Error:', err);
+    res.status(500).json({ message: 'Error fetching leave requests.' });
+  }
+});
+
 
 // ================= ATTENDANCE ROUTES ================= //
 
