@@ -101,7 +101,7 @@ if (!process.env.MONGO_URI) {
 //   allowedHeaders: ["Content-Type", "Authorization"],
 //   credentials: true
 // }));
-
+app.use(cors());
 app.use(helmet());
 app.use(bodyParser.json());
 app.use(express.json());
