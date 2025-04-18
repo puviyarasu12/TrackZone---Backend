@@ -461,7 +461,7 @@ router.post('/checkin', async (req, res) => {
 
     const now = new Date();
     const currentHour = now.getHours();
-    if (currentHour < 9 || currentHour >= 23) {
+    if (currentHour < 9 || currentHour >= 19) {
       return res.status(403).json({ message: '⛔ Check-in allowed only between 9:00 AM and 5:00 PM' });
     }
 
@@ -488,13 +488,12 @@ router.post('/checkin', async (req, res) => {
         $push: {
           'monthlyData': {
             month: now.getMonth() + 1,
-            days: [{ date: now, status: 'Present', checkInTime: now, checkOutTime: null }]
+            days: [{ date: now, status: 'present', checkInTime: now, checkOutTime: null }]
           }
         }
       },
       { upsert: true, new: true }
     );
-    await attendance.save();
 
     const io = req.app.get('io');
     io.emit('checkin_notification', {
@@ -567,8 +566,6 @@ router.post('/verify-fingerprint', async (req, res) => {
     res.status(500).json({ success: false, message: 'Error verifying fingerprint' });
   }
 });
-
-// ✅ Checkout
 router.post('/checkout', async (req, res) => {
   if (!req.body || Object.keys(req.body).length === 0) {
     return res.status(400).json({
@@ -608,11 +605,9 @@ router.post('/checkout', async (req, res) => {
       });
     }
 
-    // Update CheckIn record
     record.checkOutTime = now;
     await record.save();
 
-    // Update or create Attendance record
     let attendance = await Attendance.findOne({
       employeeId: employee.employeeId,
       year: now.getFullYear(),
@@ -627,12 +622,10 @@ router.post('/checkout', async (req, res) => {
         );
 
         if (dayRecord) {
-          // Update existing day record
           dayRecord.checkOutTime = now;
-          dayRecord.status = 'Present'; // Use valid enum value
-          dayRecord.hoursWorked = (now - dayRecord.checkInTime) / (1000 * 60 * 60); // Calculate hours worked
+          dayRecord.status = 'Present';
+          dayRecord.hoursWorked = (now - dayRecord.checkInTime) / (1000 * 60 * 60);
         } else {
-          // Add new day record
           monthData.days.push({
             date: now,
             checkInTime: record.checkInTime,
@@ -644,7 +637,6 @@ router.post('/checkout', async (req, res) => {
           monthData.totalWorkingDays += 1;
         }
       } else {
-        // Add new month data
         attendance.monthlyData.push({
           month: now.getMonth() + 1,
           days: [
@@ -661,7 +653,6 @@ router.post('/checkout', async (req, res) => {
         });
       }
     } else {
-      // Create new attendance record
       attendance = await Attendance.create({
         employeeId: employee.employeeId,
         year: now.getFullYear(),
@@ -684,7 +675,6 @@ router.post('/checkout', async (req, res) => {
       });
     }
 
-    // Save attendance record
     await attendance.save();
 
     res.status(200).json({ message: 'Check-out successful ✅' });
